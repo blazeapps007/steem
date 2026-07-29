@@ -3339,4 +3339,117 @@ void delegate_vesting_shares_evaluator::do_apply( const delegate_vesting_shares_
    }
 }
 
+void bridge_submit_evaluator::do_apply( const bridge_submit_operation& o )
+{
+   FC_ASSERT( _db.has_hardfork( STEEM_BRIDGE_ORACLE_HARDFORK ), "SVM bridge oracle is not active yet" );
+
+   // Only confirmations from a currently-scheduled witness count (17 of the 21 in the schedule).
+   const witness_schedule_object& wso = _db.get_witness_schedule_object();
+   bool scheduled = false;
+   for( int i = 0; i < wso.num_scheduled_witnesses; ++i )
+   {
+      if( wso.current_shuffled_witnesses[ i ] == o.publisher )
+      {
+         scheduled = true;
+         break;
+      }
+   }
+   if( !scheduled )
+      return; // publisher is not scheduled this round; its attestations simply do not count
+
+   const auto& processed_idx = _db.get_index< bridge_processed_index >().indices().get< by_processed_tx_hash >();
+   const auto& by_tx_idx     = _db.get_index< bridge_oracle_index >().indices().get< by_tx_hash >();
+   const auto& by_payload_idx = _db.get_index< bridge_oracle_index >().indices().get< by_payload >();
+
+   const uint32_t now = _db.head_block_num();
+
+   for( const auto& req : o.requests )
+   {
+      // Already released — terminal, never accepted again.
+      if( processed_idx.find( req.tx_hash ) != processed_idx.end() )
+         continue;
+
+      // Recipient must exist (guarantees the later release credit cannot fail / halt the chain).
+      if( _db.find_account( req.recipient ) == nullptr )
+         continue;
+
+      // Scan existing candidates for this tx: skip if a winner is already locked, or this witness
+      // already attested to any payload of this tx (one attestation per witness per tx_hash).
+      bool decided = false;
+      bool already_confirmed = false;
+      uint32_t candidate_count = 0;
+      for( auto it = by_tx_idx.lower_bound( req.tx_hash ); it != by_tx_idx.end() && it->tx_hash == req.tx_hash; ++it )
+      {
+         ++candidate_count;
+         if( it->consensus_block != 0 )
+            decided = true;
+         if( it->confirmations.find( o.publisher ) != it->confirmations.end() )
+            already_confirmed = true;
+      }
+      if( decided || already_confirmed )
+         continue;
+
+      const fc::sha256 payload_hash = fc::sha256::hash( req );
+
+      const bridge_oracle_object* bo = nullptr;
+      auto pit = by_payload_idx.find( boost::make_tuple( req.tx_hash, payload_hash ) );
+      if( pit == by_payload_idx.end() )
+      {
+         if( candidate_count >= STEEM_BRIDGE_ORACLE_MAX_CANDIDATES )
+            continue; // anti-spam: too many competing payloads for this tx
+         bo = &_db.create< bridge_oracle_object >( [&]( bridge_oracle_object& obj )
+         {
+            obj.tx_hash            = req.tx_hash;
+            obj.payload_hash       = payload_hash;
+            obj.block_num          = req.block_num;
+            obj.block_time         = req.block_time;
+            obj.recipient          = req.recipient;
+            obj.amount             = req.amount;
+            obj.symbol             = req.symbol;
+            obj.confirmations[ o.publisher ] = 0;
+            obj.confirmation_count = 1;
+            obj.created_block      = now;
+            obj.expires_block      = now + STEEM_BRIDGE_ORACLE_LIFETIME_BLOCKS;
+         } );
+      }
+      else
+      {
+         _db.modify( *pit, [&]( bridge_oracle_object& obj )
+         {
+            obj.confirmations[ o.publisher ] = 0;
+            obj.confirmation_count = obj.confirmations.size();
+         } );
+         bo = &(*pit);
+      }
+
+      // Consensus reached — earmark funds (debit svm.bank) and schedule the release. The recipient
+      // is credited later by update_bridge_oracle() at release_block. Supply-neutral: no adjust_supply.
+      if( bo->confirmation_count >= STEEM_BRIDGE_ORACLE_MIN_CONFIRMATIONS )
+      {
+         asset amt( bo->amount, bo->symbol );
+         FC_ASSERT( _db.get_balance( STEEM_BRIDGE_BANK_ACCOUNT, bo->symbol ) >= amt,
+            "svm.bank reserve insufficient for bridge release" );
+         _db.adjust_balance( STEEM_BRIDGE_BANK_ACCOUNT, -amt );
+
+         const fc::sha256 txh = bo->tx_hash;
+         const auto winner_id = bo->id;
+         _db.modify( *bo, [&]( bridge_oracle_object& obj )
+         {
+            obj.consensus_block = now;
+            obj.release_block   = now + STEEM_BRIDGE_ORACLE_MATURITY_BLOCKS;
+         } );
+
+         // Winner decided; drop all competing (non-earmarked) candidates for this tx.
+         auto cit = by_tx_idx.lower_bound( txh );
+         while( cit != by_tx_idx.end() && cit->tx_hash == txh )
+         {
+            const auto& cur = *cit;
+            ++cit;
+            if( cur.id != winner_id )
+               _db.remove( cur );
+         }
+      }
+   }
+}
+
 } } // steem::chain

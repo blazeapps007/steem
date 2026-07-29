@@ -73,6 +73,8 @@ class database_api
          (find_change_recovery_account_requests)
          (list_escrows)
          (find_escrows)
+         (find_bridge_oracle)
+         (find_bridge_processed)
          (list_withdraw_vesting_routes)
          (find_withdraw_vesting_routes)
          (list_savings_withdrawals)

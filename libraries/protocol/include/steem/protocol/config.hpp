@@ -44,7 +44,7 @@
 
 #else // IS LIVE STEEM NETWORK
 
-#define STEEM_BLOCKCHAIN_VERSION              ( version(0, 23, 1) )
+#define STEEM_BLOCKCHAIN_VERSION              ( version(0, 24, 0) )
 
 #define STEEM_INIT_PUBLIC_KEY_STR             "STM8GC13uCZbP44HzMLV6zPZGwVQ8Nt4Kji8PapsPiNq1BK153XTX"
 #define STEEM_CHAIN_ID fc::sha256()
@@ -260,6 +260,16 @@
 #define STEEM_CONVERSION_DELAY_PRE_HF_16      (fc::days(7))
 #define STEEM_CONVERSION_DELAY                (fc::hours(STEEM_FEED_HISTORY_WINDOW)) //3.5 day conversion
 
+/// SVM bridge oracle: witnesses attest to finalized SVM bridge events; the chain releases from svm.bank on consensus.
+#ifdef IS_TEST_NET
+#define STEEM_BRIDGE_ORACLE_MIN_CONFIRMATIONS  1                                  // testnet: single-witness release
+#else
+#define STEEM_BRIDGE_ORACLE_MIN_CONFIRMATIONS  STEEM_HARDFORK_REQUIRED_WITNESSES  // mainnet: 17 of 21 scheduled DPOS witnesses
+#endif
+#define STEEM_BRIDGE_ORACLE_LIFETIME_BLOCKS    (STEEM_BLOCKS_PER_DAY * 7 / 2)   // 3.5 days (pre-consensus deadline)
+#define STEEM_BRIDGE_ORACLE_MAX_CANDIDATES     3                                // distinct payloads accepted per tx_hash (anti-spam)
+#define STEEM_BRIDGE_ORACLE_MATURITY_BLOCKS    (STEEM_MAX_WITNESSES + 1)        // one full DPoS round (21) + 1 margin block
+
 #define STEEM_MIN_UNDO_HISTORY                10
 #define STEEM_MAX_UNDO_HISTORY                10000
 
@@ -339,6 +349,8 @@
 /// Represents the account with NO authority which holds resources for payouts according to given proposals
 #define STEEM_TREASURY_ACCOUNT                "steem.dao"
 #define HIVE_TREASURY_ACCOUNT                "community321"
+/// Key-nullified reserve account the SVM bridge releases from (holds STEEM and SBD; balance mirrors SVM-locked supply)
+#define STEEM_BRIDGE_BANK_ACCOUNT             "svm.bank"
 ///@}
 
 /// STEEM PROPOSAL SYSTEM support

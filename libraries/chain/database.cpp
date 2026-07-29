@@ -2887,6 +2887,7 @@ void database::initialize_evaluators()
    _my->_evaluator_registry.register_evaluator< create_proposal_evaluator                >();
    _my->_evaluator_registry.register_evaluator< update_proposal_votes_evaluator          >();
    _my->_evaluator_registry.register_evaluator< remove_proposal_evaluator                >();
+   _my->_evaluator_registry.register_evaluator< bridge_submit_evaluator                  >();
 
 
 #ifdef IS_TEST_NET
@@ -3427,6 +3428,8 @@ void database::_apply_block( const signed_block& next_block )
    update_median_feed();
    update_virtual_supply();
 
+   update_bridge_oracle();
+
    clear_null_account_balance();
    process_funds();
    process_conversions();
@@ -3617,6 +3620,101 @@ try {
          }
       });
    }
+} FC_CAPTURE_AND_RETHROW() }
+
+void database::update_bridge_oracle()
+{ try {
+   if( !has_hardfork( STEEM_BRIDGE_ORACLE_HARDFORK ) )
+      return;
+
+   const uint32_t now = head_block_num();
+
+   // (1) RELEASE matured winners — credit the recipient (funds were earmarked from svm.bank at
+   //     consensus). Supply-neutral: no adjust_supply. The credit cannot fail (funds reserved).
+   {
+      const auto& rel_idx = get_index< bridge_oracle_index >().indices().get< by_release_block >();
+      auto itr = rel_idx.lower_bound( 1u ); // skip release_block == 0 (candidates not yet at consensus)
+      while( itr != rel_idx.end() && itr->release_block <= now )
+      {
+         const bridge_oracle_object& bo = *itr;
+         ++itr;
+
+         adjust_balance( bo.recipient, asset( bo.amount, bo.symbol ) );
+         push_virtual_operation( bridge_release_operation( bo.tx_hash, bo.block_num, bo.block_time,
+            bo.recipient, bo.amount, bo.symbol, bo.confirmation_count ) );
+         create< bridge_processed_object >( [&]( bridge_processed_object& p )
+         {
+            p.tx_hash = bo.tx_hash;
+            p.processed_block = now;
+         });
+         remove( bo );
+      }
+   }
+
+   // (2) EXPIRE stale candidates that never reached consensus (no funds were earmarked).
+   {
+      const auto& exp_idx = get_index< bridge_oracle_index >().indices().get< by_expiration >();
+      auto itr = exp_idx.begin();
+      while( itr != exp_idx.end() && itr->expires_block <= now )
+      {
+         const bridge_oracle_object& bo = *itr;
+         ++itr;
+         if( bo.consensus_block != 0 )
+            continue; // earmarked winners release via (1); they never expire
+         push_virtual_operation( bridge_oracle_expired_operation( bo.tx_hash, bo.block_num, bo.block_time,
+            bo.recipient, bo.amount, bo.symbol, bo.confirmation_count ) );
+         remove( bo ); // delete only — NO bridge_processed_object; tx_hash remains re-submittable
+      }
+   }
+} FC_CAPTURE_AND_RETHROW() }
+
+void database::init_bridge_bank_account()
+{ try {
+   // svm.bank is the supply-neutral reserve the bridge releases from. Its authorities are cleared so
+   // no private key can ever spend it — only bridge consensus. On mainnet the account pre-exists
+   // (operators fund it before activation) and this only nullifies its keys; on testnet it is created.
+   const auto* acct = find_account( STEEM_BRIDGE_BANK_ACCOUNT );
+   if( acct == nullptr )
+   {
+      create< account_object >( [&]( account_object& a )
+      {
+         a.name = STEEM_BRIDGE_BANK_ACCOUNT;
+         a.recovery_account = STEEM_BRIDGE_BANK_ACCOUNT;
+      });
+      create< account_authority_object >( [&]( account_authority_object& auth )
+      {
+         auth.account = STEEM_BRIDGE_BANK_ACCOUNT;
+         auth.owner.weight_threshold = 1;
+         auth.active.weight_threshold = 1;
+         auth.posting.weight_threshold = 1;
+      });
+      return;
+   }
+
+   auto* account_auth = find< account_authority_object, by_account >( STEEM_BRIDGE_BANK_ACCOUNT );
+   if( account_auth == nullptr )
+      create< account_authority_object >( [&]( account_authority_object& auth )
+      {
+         auth.account = STEEM_BRIDGE_BANK_ACCOUNT;
+         auth.owner.weight_threshold = 1;
+         auth.active.weight_threshold = 1;
+         auth.posting.weight_threshold = 1;
+      });
+   else
+      modify( *account_auth, [&]( account_authority_object& auth )
+      {
+         auth.owner.weight_threshold = 1;
+         auth.owner.clear();
+         auth.active.weight_threshold = 1;
+         auth.active.clear();
+         auth.posting.weight_threshold = 1;
+         auth.posting.clear();
+      });
+
+   modify( *acct, [&]( account_object& a )
+   {
+      a.recovery_account = STEEM_BRIDGE_BANK_ACCOUNT;
+   });
 } FC_CAPTURE_AND_RETHROW() }
 
 void database::apply_transaction(const signed_transaction& trx, uint32_t skip)
@@ -5223,14 +5321,11 @@ void database::init_hardforks()
    FC_ASSERT( STEEM_HARDFORK_0_23 == 23, "Invalid hardfork configuration" );
    _hardfork_versions.times[ STEEM_HARDFORK_0_23 ] = fc::time_point_sec( STEEM_HARDFORK_0_23_TIME );
    _hardfork_versions.versions[ STEEM_HARDFORK_0_23 ] = STEEM_HARDFORK_0_23_VERSION;
-#ifdef IS_TEST_NET
-    FC_ASSERT( STEEM_HARDFORK_0_24 == 24, "Invalid hardfork configuration" );
-    _hardfork_versions.times[ STEEM_HARDFORK_0_24 ] = fc::time_point_sec( STEEM_HARDFORK_0_24_TIME );
-    _hardfork_versions.versions[ STEEM_HARDFORK_0_24 ] = STEEM_HARDFORK_0_24_VERSION;
-#endif
-   FC_ASSERT( STEEM_HARDFORK_0_23 == 23, "Invalid hardfork configuration" );
-   _hardfork_versions.times[ STEEM_HARDFORK_0_23 ] = fc::time_point_sec( STEEM_HARDFORK_0_23_TIME );
-   _hardfork_versions.versions[ STEEM_HARDFORK_0_23 ] = STEEM_HARDFORK_0_23_VERSION;
+   // HF24 = SVM bridge oracle (both networks; the latest active hardfork). HF25 (SMT) is parked and
+   // must NOT be initialized here — STEEM_NUM_HARDFORKS == 24 sizes _hardfork_versions to [0..24].
+   FC_ASSERT( STEEM_HARDFORK_0_24 == 24, "Invalid hardfork configuration" );
+   _hardfork_versions.times[ STEEM_HARDFORK_0_24 ] = fc::time_point_sec( STEEM_HARDFORK_0_24_TIME );
+   _hardfork_versions.versions[ STEEM_HARDFORK_0_24 ] = STEEM_HARDFORK_0_24_VERSION;
 
    const auto& hardforks = get_hardfork_property_object();
    FC_ASSERT( hardforks.last_hardfork <= STEEM_NUM_HARDFORKS, "Chain knows of more hardforks than configuration", ("hardforks.last_hardfork",hardforks.last_hardfork)("STEEM_NUM_HARDFORKS",STEEM_NUM_HARDFORKS) );
@@ -5664,7 +5759,11 @@ void database::apply_hardfork( uint32_t hardfork )
          }
          break;
       }
-      case STEEM_SMT_HARDFORK:
+      case STEEM_HARDFORK_0_24:
+         // HF24 = SVM bridge oracle activation (both networks): create/lock the svm.bank reserve.
+         init_bridge_bank_account();
+         break;
+      case STEEM_SMT_HARDFORK: // == STEEM_HARDFORK_0_25; parked (never reached while NUM_HARDFORKS == 24)
       {
 #ifdef STEEM_ENABLE_SMT
          replenish_nai_pool( *this );
@@ -5780,6 +5879,23 @@ void database::validate_invariants()const
             total_sbd += itr->pending_fee;
          else
             FC_ASSERT( false, "found escrow pending fee that is not SBD or STEEM" );
+      }
+
+      // SVM bridge: funds earmarked at consensus are debited from svm.bank and held in-flight by the
+      // bridge_oracle_object until release. Count them so the supply invariant still balances.
+      const auto& bridge_idx = get_index< bridge_oracle_index >().indices().get< by_id >();
+
+      for( auto itr = bridge_idx.begin(); itr != bridge_idx.end(); ++itr )
+      {
+         if( itr->consensus_block == 0 )
+            continue; // not earmarked; those funds are still counted in svm.bank's account balance
+
+         if( itr->symbol == STEEM_SYMBOL )
+            total_supply += asset( itr->amount, STEEM_SYMBOL );
+         else if( itr->symbol == SBD_SYMBOL )
+            total_sbd += asset( itr->amount, SBD_SYMBOL );
+         else
+            FC_ASSERT( false, "illegal symbol in bridge_oracle_object" );
       }
 
       const auto& savings_withdraw_idx = get_index< savings_withdraw_index >().indices().get< by_id >();

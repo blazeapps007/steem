@@ -368,6 +368,8 @@ struct count_operation_visitor
       execution_time_count += _e.remove_proposal_operation_exec_time;
    }
 
+   void operator()( const bridge_submit_operation& ) const {}
+
    void operator()( const recover_account_operation& ) const {}
    void operator()( const pow_operation& ) const {}
    void operator()( const pow2_operation& ) const {}
@@ -395,6 +397,8 @@ struct count_operation_visitor
    void operator()( const proposal_pay_operation& ) const {}
    void operator()( const sps_fund_operation& ) const {}
    void operator()( const hardfork23_operation& ) const {}
+   void operator()( const bridge_release_operation& ) const {}
+   void operator()( const bridge_oracle_expired_operation& ) const {}
 
    // Optional Actions
 #ifdef IS_TEST_NET

@@ -83,6 +83,8 @@ namespace steem { namespace protocol {
             smt_contribute_operation,
 #endif
 
+            bridge_submit_operation,
+
             /// virtual operations below this point
             fill_convert_request_operation,
             author_reward_operation,
@@ -102,7 +104,9 @@ namespace steem { namespace protocol {
             clear_null_account_balance_operation,
             proposal_pay_operation,
             sps_fund_operation,
-            hardfork23_operation
+            hardfork23_operation,
+            bridge_release_operation,
+            bridge_oracle_expired_operation
          > operation;
 
    /*void operation_get_required_authorities( const operation& op,

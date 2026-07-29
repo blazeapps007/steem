@@ -493,6 +493,19 @@ namespace steem { namespace protocol {
       exchange_rate.validate();
    }
 
+   void bridge_submit_operation::validate()const
+   {
+      validate_account_name( publisher );
+      // An empty batch is a valid no-op ("no new bridge transactions this round").
+      for( const auto& r : requests )
+      {
+         validate_account_name( r.recipient );
+         FC_ASSERT( r.amount > 0, "Bridge amount must be positive" );
+         FC_ASSERT( r.symbol == STEEM_SYMBOL || r.symbol == SBD_SYMBOL,
+            "Bridge symbol must be STEEM or SBD" );
+      }
+   }
+
    void limit_order_create_operation::validate()const
    {
       validate_account_name( owner );

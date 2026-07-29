@@ -20,6 +20,8 @@ typedef block_summary_object                   api_block_summary_object;
 typedef dynamic_global_property_object         api_dynamic_global_property_object;
 typedef convert_request_object                 api_convert_request_object;
 typedef escrow_object                          api_escrow_object;
+typedef bridge_oracle_object                   api_bridge_oracle_object;
+typedef bridge_processed_object                api_bridge_processed_object;
 typedef liquidity_reward_balance_object        api_liquidity_reward_balance_object;
 typedef limit_order_object                     api_limit_order_object;
 typedef withdraw_vesting_route_object          api_withdraw_vesting_route_object;

@@ -204,6 +204,46 @@ namespace steem { namespace protocol {
       asset             total_steem_from_vests; // Resulting STEEM from conversion
    };
 
+   /**
+    *  Emitted when an SVM bridge transaction reaches consensus and the asset is released from
+    *  svm.bank to the recipient (the "Bridged From SVM" credit). Supply-neutral: a transfer, not a mint.
+    */
+   struct bridge_release_operation : public virtual_operation
+   {
+      bridge_release_operation() {}
+      bridge_release_operation( const fc::sha256& tx, uint32_t bn, const time_point_sec& bt,
+         const account_name_type& r, const share_type& amt, const asset_symbol_type& sym, uint32_t confs )
+         : tx_hash(tx), block_num(bn), block_time(bt), recipient(r), amount(amt), symbol(sym), confirmations(confs) {}
+
+      fc::sha256        tx_hash;
+      uint32_t          block_num = 0;
+      time_point_sec    block_time;
+      account_name_type recipient;
+      share_type        amount;
+      asset_symbol_type symbol;
+      uint32_t          confirmations = 0;
+   };
+
+   /**
+    *  Emitted when a pending SVM bridge transaction expires without reaching consensus. No funds
+    *  move and the tx_hash remains eligible for re-submission.
+    */
+   struct bridge_oracle_expired_operation : public virtual_operation
+   {
+      bridge_oracle_expired_operation() {}
+      bridge_oracle_expired_operation( const fc::sha256& tx, uint32_t bn, const time_point_sec& bt,
+         const account_name_type& r, const share_type& amt, const asset_symbol_type& sym, uint32_t confs )
+         : tx_hash(tx), block_num(bn), block_time(bt), recipient(r), amount(amt), symbol(sym), confirmations(confs) {}
+
+      fc::sha256        tx_hash;
+      uint32_t          block_num = 0;
+      time_point_sec    block_time;
+      account_name_type recipient;
+      share_type        amount;
+      asset_symbol_type symbol;
+      uint32_t          confirmations = 0;
+   };
+
 } } //steem::protocol
 
 FC_REFLECT( steem::protocol::author_reward_operation, (author)(permlink)(sbd_payout)(steem_payout)(vesting_payout) )
@@ -224,3 +264,5 @@ FC_REFLECT( steem::protocol::producer_reward_operation, (producer)(vesting_share
 FC_REFLECT( steem::protocol::clear_null_account_balance_operation, (total_cleared) )
 FC_REFLECT( steem::protocol::sps_fund_operation, (additional_funds) )
 FC_REFLECT( steem::protocol::hardfork23_operation, (account)(sbd_transferred)(steem_transferred)(vests_converted)(total_steem_from_vests) )
+FC_REFLECT( steem::protocol::bridge_release_operation, (tx_hash)(block_num)(block_time)(recipient)(amount)(symbol)(confirmations) )
+FC_REFLECT( steem::protocol::bridge_oracle_expired_operation, (tx_hash)(block_num)(block_time)(recipient)(amount)(symbol)(confirmations) )

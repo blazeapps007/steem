@@ -252,6 +252,11 @@ add_boost_test( chain_test
    undo_tests/undo_key_collision
    undo_tests/undo_different_indexes
    undo_tests/undo_generate_blocks
+   bridge_oracle_tests/bridge_submit_validate
+   bridge_oracle_tests/bridge_submit_authorities
+   bridge_oracle_tests/bridge_submit_apply_single
+   bridge_oracle_tests/bridge_release_maturity
+   bridge_oracle_tests/bridge_expiry_non_terminal
 )
 
 target_link_libraries( chain_test db_fixture chainbase steem_chain steem_protocol account_history_plugin market_history_plugin rc_plugin witness_plugin debug_node_plugin fc ${PLATFORM_SPECIFIC_LIBS} )

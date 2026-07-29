@@ -636,6 +636,37 @@ namespace steem { namespace protocol {
 
 
    /**
+    *  A single finalized SVM bridge transaction a witness attests to. The integer @ref amount is
+    *  in the smallest unit of @ref symbol (STEEM or SBD) and is meaningless without it.
+    */
+   struct bridge_request
+   {
+      fc::sha256        tx_hash;      // unique SVM transaction hash
+      uint32_t          block_num = 0;// SVM block number
+      time_point_sec    block_time;   // SVM block timestamp
+      account_name_type recipient;    // destination Steem account
+      share_type        amount;       // integer amount in the asset's smallest unit
+      asset_symbol_type symbol;       // STEEM_SYMBOL or SBD_SYMBOL
+   };
+
+   /**
+    *  A batch of SVM bridge attestations submitted by a scheduled witness (the @ref publisher).
+    *  The batch may be empty. Only the publisher's active authority is required; submission
+    *  boundaries never affect consensus — the chain reaches consensus on each bridge transaction
+    *  independently and, once 17 of the 21 scheduled witnesses agree, releases the asset from
+    *  STEEM_BRIDGE_BANK_ACCOUNT (svm.bank). Witnesses never move funds directly.
+    */
+   struct bridge_submit_operation : public base_operation
+   {
+      account_name_type          publisher;
+      vector< bridge_request >   requests;
+
+      void  validate()const;
+      void  get_required_active_authorities( flat_set<account_name_type>& a )const{ a.insert(publisher); }
+   };
+
+
+   /**
     *  This operation instructs the blockchain to start a conversion between STEEM and SBD,
     *  The funds are deposited after STEEM_CONVERSION_DELAY
     */
@@ -1088,6 +1119,8 @@ FC_REFLECT( steem::protocol::set_reset_account_operation, (account)(current_rese
 FC_REFLECT( steem::protocol::report_over_production_operation, (reporter)(first_block)(second_block) )
 FC_REFLECT( steem::protocol::convert_operation, (owner)(requestid)(amount) )
 FC_REFLECT( steem::protocol::feed_publish_operation, (publisher)(exchange_rate) )
+FC_REFLECT( steem::protocol::bridge_request, (tx_hash)(block_num)(block_time)(recipient)(amount)(symbol) )
+FC_REFLECT( steem::protocol::bridge_submit_operation, (publisher)(requests) )
 FC_REFLECT( steem::protocol::pow, (worker)(input)(signature)(work) )
 FC_REFLECT( steem::protocol::pow2, (input)(pow_summary) )
 FC_REFLECT( steem::protocol::pow2_input, (worker_account)(prev_block)(nonce) )

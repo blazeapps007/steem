@@ -16,6 +16,8 @@ namespace steem { namespace chain {
    using steem::protocol::price;
    using steem::protocol::asset_symbol_type;
    using chainbase::t_deque;
+   using chainbase::t_flat_map;
+   using chainbase::t_allocator_pair;
 
    typedef protocol::fixed_string< 16 > reward_fund_name_type;
 
@@ -463,6 +465,113 @@ namespace steem { namespace chain {
       allocator< reward_fund_object >
    > reward_fund_index;
 
+
+   /**
+    *  A pending SVM bridge candidate — one object per distinct (tx_hash, payload_hash). It gathers
+    *  confirmations from currently-scheduled witnesses; on reaching STEEM_BRIDGE_ORACLE_MIN_CONFIRMATIONS
+    *  the amount is earmarked (debited from svm.bank) and released to @ref recipient after
+    *  STEEM_BRIDGE_ORACLE_MATURITY_BLOCKS. Supply-neutral: the release is a transfer, never a mint.
+    */
+   class bridge_oracle_object : public object< bridge_oracle_object_type, bridge_oracle_object >
+   {
+      STEEM_STD_ALLOCATOR_CONSTRUCTOR( bridge_oracle_object )
+
+      public:
+         template< typename Constructor, typename Allocator >
+         bridge_oracle_object( Constructor&& c, allocator< Allocator > a )
+            : confirmations( t_allocator_pair< account_name_type, uint16_t >( a ) )
+         {
+            c( *this );
+         }
+
+         id_type            id;
+
+         fc::sha256         tx_hash;       ///< SVM transaction hash (may have multiple competing payload candidates)
+         fc::sha256         payload_hash;  ///< sha256(pack(block_num,block_time,recipient,amount,symbol))
+         uint32_t           block_num = 0;
+         time_point_sec     block_time;
+         account_name_type  recipient;
+         share_type         amount;
+         asset_symbol_type  symbol;
+
+         /// distinct scheduled witnesses backing this payload (used as a set; the mapped value is unused)
+         t_flat_map< account_name_type, uint16_t > confirmations;
+         uint32_t           confirmation_count = 0;     ///< == confirmations.size()
+         uint32_t           created_block   = 0;
+         uint32_t           expires_block   = 0;        ///< created_block + LIFETIME_BLOCKS (pre-consensus deadline)
+         uint32_t           consensus_block = 0;        ///< 0 = not yet at consensus; else block C, funds earmarked
+         uint32_t           release_block   = 0;        ///< 0 until consensus; else C + MATURITY_BLOCKS
+   };
+
+   /**
+    *  Terminal replay guard: written only on a successful bridge release. Presence of a record for a
+    *  tx_hash means it has been processed and may never be released again.
+    */
+   class bridge_processed_object : public object< bridge_processed_object_type, bridge_processed_object >
+   {
+      public:
+         template< typename Constructor, typename Allocator >
+         bridge_processed_object( Constructor&& c, allocator< Allocator > a )
+         {
+            c( *this );
+         }
+
+         bridge_processed_object(){}
+
+         id_type       id;
+         fc::sha256    tx_hash;
+         uint32_t      processed_block = 0;
+   };
+
+   struct by_payload;
+   struct by_tx_hash;
+   struct by_expiration;
+   struct by_release_block;
+   typedef multi_index_container<
+      bridge_oracle_object,
+      indexed_by<
+         ordered_unique< tag< by_id >,
+            member< bridge_oracle_object, bridge_oracle_id_type, &bridge_oracle_object::id > >,
+         ordered_unique< tag< by_payload >,
+            composite_key< bridge_oracle_object,
+               member< bridge_oracle_object, fc::sha256, &bridge_oracle_object::tx_hash >,
+               member< bridge_oracle_object, fc::sha256, &bridge_oracle_object::payload_hash >
+            >
+         >,
+         ordered_unique< tag< by_tx_hash >,
+            composite_key< bridge_oracle_object,
+               member< bridge_oracle_object, fc::sha256, &bridge_oracle_object::tx_hash >,
+               member< bridge_oracle_object, bridge_oracle_id_type, &bridge_oracle_object::id >
+            >
+         >,
+         ordered_unique< tag< by_expiration >,
+            composite_key< bridge_oracle_object,
+               member< bridge_oracle_object, uint32_t, &bridge_oracle_object::expires_block >,
+               member< bridge_oracle_object, bridge_oracle_id_type, &bridge_oracle_object::id >
+            >
+         >,
+         ordered_unique< tag< by_release_block >,
+            composite_key< bridge_oracle_object,
+               member< bridge_oracle_object, uint32_t, &bridge_oracle_object::release_block >,
+               member< bridge_oracle_object, bridge_oracle_id_type, &bridge_oracle_object::id >
+            >
+         >
+      >,
+      allocator< bridge_oracle_object >
+   > bridge_oracle_index;
+
+   struct by_processed_tx_hash;
+   typedef multi_index_container<
+      bridge_processed_object,
+      indexed_by<
+         ordered_unique< tag< by_id >,
+            member< bridge_processed_object, bridge_processed_id_type, &bridge_processed_object::id > >,
+         ordered_unique< tag< by_processed_tx_hash >,
+            member< bridge_processed_object, fc::sha256, &bridge_processed_object::tx_hash > >
+      >,
+      allocator< bridge_processed_object >
+   > bridge_processed_index;
+
 } } // steem::chain
 
 #ifdef ENABLE_MIRA
@@ -493,6 +602,15 @@ CHAINBASE_SET_INDEX_TYPE( steem::chain::feed_history_object, steem::chain::feed_
 FC_REFLECT( steem::chain::convert_request_object,
              (id)(owner)(requestid)(amount)(conversion_date) )
 CHAINBASE_SET_INDEX_TYPE( steem::chain::convert_request_object, steem::chain::convert_request_index )
+
+FC_REFLECT( steem::chain::bridge_oracle_object,
+             (id)(tx_hash)(payload_hash)(block_num)(block_time)(recipient)(amount)(symbol)
+             (confirmations)(confirmation_count)(created_block)(expires_block)(consensus_block)(release_block) )
+CHAINBASE_SET_INDEX_TYPE( steem::chain::bridge_oracle_object, steem::chain::bridge_oracle_index )
+
+FC_REFLECT( steem::chain::bridge_processed_object,
+             (id)(tx_hash)(processed_block) )
+CHAINBASE_SET_INDEX_TYPE( steem::chain::bridge_processed_object, steem::chain::bridge_processed_index )
 
 FC_REFLECT( steem::chain::liquidity_reward_balance_object,
              (id)(owner)(steem_volume)(sbd_volume)(weight)(last_update) )

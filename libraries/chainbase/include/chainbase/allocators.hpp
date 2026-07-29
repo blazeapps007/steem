@@ -4,6 +4,8 @@
 #include <boost/interprocess/containers/map.hpp>
 #include <boost/interprocess/containers/set.hpp>
 #include <boost/interprocess/containers/flat_map.hpp>
+#include <boost/interprocess/containers/flat_set.hpp>
+#include <boost/container/flat_set.hpp>
 #include <boost/interprocess/containers/deque.hpp>
 #include <boost/interprocess/containers/string.hpp>
 #include <boost/interprocess/containers/vector.hpp>
@@ -70,5 +72,11 @@ namespace chainbase {
    using t_deque = typename std::conditional< _ENABLE_MIRA,
                   std::deque< T, allocator< T > >,
                   bip::deque< T, allocator< T > >
+                  >::type;
+
+   template< typename T, typename LESS_FUNC = std::less< T > >
+   using t_flat_set = typename std::conditional< _ENABLE_MIRA,
+                  boost::container::flat_set< T, LESS_FUNC, allocator< T > >,
+                  bip::flat_set< T, LESS_FUNC, allocator< T > >
                   >::type;
 }

@@ -96,6 +96,8 @@ enum object_type
    smt_contribution_object_type,
    smt_ico_object_type,
 #endif
+   bridge_oracle_object_type,
+   bridge_processed_object_type,
 };
 
 class dynamic_global_property_object;
@@ -144,6 +146,9 @@ class smt_ico_object;
 class proposal_object;
 class proposal_vote_object;
 
+class bridge_oracle_object;
+class bridge_processed_object;
+
 typedef oid< dynamic_global_property_object         > dynamic_global_property_id_type;
 typedef oid< account_object                         > account_id_type;
 typedef oid< account_metadata_object                > account_metadata_id_type;
@@ -189,6 +194,9 @@ typedef oid< smt_ico_object                         > smt_ico_object_id_type;
 
 typedef oid< proposal_object > proposal_id_type;
 typedef oid< proposal_vote_object > proposal_vote_id_type;
+
+typedef oid< bridge_oracle_object > bridge_oracle_id_type;
+typedef oid< bridge_processed_object > bridge_processed_id_type;
 
 enum bandwidth_type
 {
@@ -398,6 +406,8 @@ FC_REFLECT_ENUM( steem::chain::object_type,
                  (smt_contribution_object_type)
                  (smt_ico_object_type)
 #endif
+                 (bridge_oracle_object_type)
+                 (bridge_processed_object_type)
                )
 
 #ifndef ENABLE_MIRA

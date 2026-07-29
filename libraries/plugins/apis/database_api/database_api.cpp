@@ -49,6 +49,8 @@ class database_api_impl
          (find_change_recovery_account_requests)
          (list_escrows)
          (find_escrows)
+         (find_bridge_oracle)
+         (find_bridge_processed)
          (list_withdraw_vesting_routes)
          (find_withdraw_vesting_routes)
          (list_savings_withdrawals)
@@ -615,6 +617,38 @@ DEFINE_API_IMPL( database_api_impl, find_escrows )
       result.escrows.push_back( *itr );
       ++itr;
    }
+
+   return result;
+}
+
+
+/* SVM Bridge Oracle */
+
+DEFINE_API_IMPL( database_api_impl, find_bridge_oracle )
+{
+   find_bridge_oracle_return result;
+
+   const auto& idx = _db.get_index< chain::bridge_oracle_index, chain::by_tx_hash >();
+   auto itr = idx.lower_bound( args.tx_hash );
+
+   while( itr != idx.end() && itr->tx_hash == args.tx_hash && result.candidates.size() <= DATABASE_API_SINGLE_QUERY_LIMIT )
+   {
+      result.candidates.push_back( *itr );
+      ++itr;
+   }
+
+   return result;
+}
+
+DEFINE_API_IMPL( database_api_impl, find_bridge_processed )
+{
+   find_bridge_processed_return result;
+
+   const auto& idx = _db.get_index< chain::bridge_processed_index, chain::by_processed_tx_hash >();
+   auto itr = idx.find( args.tx_hash );
+
+   if( itr != idx.end() )
+      result.records.push_back( *itr );
 
    return result;
 }
@@ -1968,6 +2002,8 @@ DEFINE_READ_APIS( database_api,
    (find_change_recovery_account_requests)
    (list_escrows)
    (find_escrows)
+   (find_bridge_oracle)
+   (find_bridge_processed)
    (list_withdraw_vesting_routes)
    (find_withdraw_vesting_routes)
    (list_savings_withdrawals)

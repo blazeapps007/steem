@@ -262,6 +262,29 @@ struct find_escrows_args
 typedef list_escrows_return find_escrows_return;
 
 
+/* SVM Bridge Oracle */
+
+struct find_bridge_oracle_args
+{
+   fc::sha256 tx_hash;
+};
+
+struct find_bridge_oracle_return
+{
+   vector< api_bridge_oracle_object > candidates;
+};
+
+struct find_bridge_processed_args
+{
+   fc::sha256 tx_hash;
+};
+
+struct find_bridge_processed_return
+{
+   vector< api_bridge_processed_object > records;
+};
+
+
 /* Vesting Withdraw Routes */
 
 typedef list_object_args_type list_withdraw_vesting_routes_args;
@@ -723,6 +746,15 @@ FC_REFLECT( steem::plugins::database_api::list_escrows_return,
 
 FC_REFLECT( steem::plugins::database_api::find_escrows_args,
    (from) )
+
+FC_REFLECT( steem::plugins::database_api::find_bridge_oracle_args,
+   (tx_hash) )
+FC_REFLECT( steem::plugins::database_api::find_bridge_oracle_return,
+   (candidates) )
+FC_REFLECT( steem::plugins::database_api::find_bridge_processed_args,
+   (tx_hash) )
+FC_REFLECT( steem::plugins::database_api::find_bridge_processed_return,
+   (records) )
 
 FC_REFLECT( steem::plugins::database_api::list_withdraw_vesting_routes_return,
    (routes) )

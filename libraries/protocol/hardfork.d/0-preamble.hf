@@ -12,8 +12,6 @@
 #include <steem/protocol/version.hpp>
 #include <set>
 
-#ifdef IS_TEST_NET
+// HF24 (SVM bridge oracle) is the latest active hardfork on both networks.
+// HF25 (SMT) is defined but parked — NUM_HARDFORKS stays at 24 so it is never scheduled.
 #define STEEM_NUM_HARDFORKS 24
-#else
-#define STEEM_NUM_HARDFORKS 23
-#endif

@@ -290,6 +290,22 @@ struct get_impacted_account_visitor
       _impacted.insert( op.account );
    }
 
+   void operator()( const bridge_submit_operation& op )
+   {
+      _impacted.insert( op.publisher );
+   }
+
+   void operator()( const bridge_release_operation& op )
+   {
+      _impacted.insert( op.recipient );
+      _impacted.insert( STEEM_BRIDGE_BANK_ACCOUNT );
+   }
+
+   void operator()( const bridge_oracle_expired_operation& op )
+   {
+      _impacted.insert( op.recipient );
+   }
+
    //void operator()( const operation& op ){}
 };
 

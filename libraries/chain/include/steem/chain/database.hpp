@@ -415,6 +415,11 @@ namespace steem { namespace chain {
          void process_decline_voting_rights();
          void update_median_feed();
 
+         /// SVM bridge oracle: release matured (earmarked) bridge transfers and expire stale candidates. Runs every block.
+         void update_bridge_oracle();
+         /// Create/lock the svm.bank reserve account (nullified keys) at the bridge hardfork.
+         void init_bridge_bank_account();
+
          asset get_liquidity_reward()const;
          asset get_content_reward()const;
          asset get_producer_reward();
