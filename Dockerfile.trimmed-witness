@@ -37,7 +37,7 @@ RUN mkdir -p build && cd build && \
         -DSKIP_BY_TX_ID=${SKIP_BY_TX_ID} \
         -DBUILD_STEEM_TESTNET=${BUILD_STEEM_TESTNET} \
         .. && \
-    make -j$(nproc) steemd cli_wallet
+    make -j$(nproc) steemd
 
 FROM ubuntu:18.04 AS final
 RUN apt-get update && \
@@ -45,7 +45,6 @@ RUN apt-get update && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/src/steem/build/programs/steemd/steemd /usr/local/bin/steemd
-COPY --from=builder /usr/local/src/steem/build/programs/cli_wallet/cli_wallet /usr/local/bin/cli_wallet
 
 WORKDIR /steem
 VOLUME ["/steem"]
