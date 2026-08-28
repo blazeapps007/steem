@@ -24,10 +24,12 @@ namespace steem { namespace chain {
             std::fstream             index_stream;
             fc::path                 block_file;
             fc::path                 index_file;
-            bool                     block_write = false;
-            bool                     index_write = false;
+            fc::path                 offset_file;
+            uint64_t                 data_offset = 0;
 
-            bool                     use_locking = true;
+            bool                     block_write = false;
+            bool                     index_write = false;            
+            bool                     use_locking = true;            
 
             boost::mutex             mtx;
 
@@ -110,6 +112,21 @@ namespace steem { namespace chain {
 
       my->block_file = file;
       my->index_file = fc::path( file.generic_string() + ".index" );
+      my->offset_file = fc::path( file.generic_string() + ".offset" );
+
+      std::ifstream istream( my->offset_file.generic_string().c_str() );
+      if ( istream )
+      {
+         try
+         {
+            std::string line;
+            FC_ASSERT( std::getline( istream, line ), "Error reading data offset from 'block_log.offset' file" );
+            my->data_offset = std::stoull( line );               
+            ilog( "Using data offset: ${o}", ("o", my->data_offset) );
+            istream.close();
+         }
+         FC_LOG_AND_RETHROW()
+      }
 
       my->block_stream.open( my->block_file.generic_string().c_str(), LOG_WRITE );
       my->index_stream.open( my->index_file.generic_string().c_str(), LOG_WRITE );
@@ -179,8 +196,10 @@ namespace steem { namespace chain {
          ilog( "Index is nonempty, remove and recreate it" );
          my->index_stream.close();
          fc::remove_all( my->index_file );
+         fc::remove_all( my->offset_file );
          my->index_stream.open( my->index_file.generic_string().c_str(), LOG_WRITE );
          my->index_write = true;
+         my->data_offset = 0;
       }
    }
 
@@ -208,7 +227,7 @@ namespace steem { namespace chain {
          my->check_block_write();
          my->check_index_write();
 
-         uint64_t pos = my->block_stream.tellp();
+         uint64_t pos = static_cast<uint64_t>( my->block_stream.tellp() ) + my->data_offset;
          FC_ASSERT( static_cast<uint64_t>(my->index_stream.tellp()) == sizeof( uint64_t ) * ( b.block_num() - 1 ),
             "Append to index file occuring at wrong position.",
             ( "position", (uint64_t) my->index_stream.tellp() )( "expected",( b.block_num() - 1 ) * sizeof( uint64_t ) ) );
@@ -255,7 +274,7 @@ namespace steem { namespace chain {
       {
          my->check_block_read();
 
-         my->block_stream.seekg( pos );
+         my->block_stream.seekg( pos - my->data_offset );
          std::pair<signed_block,uint64_t> result;
          fc::raw::unpack( my->block_stream, result.first );
          result.second = uint64_t(my->block_stream.tellg()) + 8;
@@ -353,6 +372,8 @@ namespace steem { namespace chain {
       try
       {
          ilog( "Reconstructing Block Log Index..." );
+         FC_ASSERT( !fc::exists( my->offset_file ), "Offset file exists! Cannot construct index from a trimmed Block Log." );
+
          my->index_stream.close();
          fc::remove_all( my->index_file );
          my->index_stream.open( my->index_file.generic_string().c_str(), LOG_WRITE );
