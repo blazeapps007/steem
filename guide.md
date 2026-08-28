@@ -15,10 +15,14 @@ production; it is not an archival/API node.
 ## Prerequisites
 
 - Docker with the Compose plugin (`docker compose version` should work)
-- `git`
-- ~30GB free disk space
+- `git`, `lz4`
+- ~50GB free disk space (~19GB for the compressed snapshot download, ~28GB
+  once extracted — you can delete the archive after extracting to get back
+  down to ~28GB)
 - 8GB+ RAM
-- 20-30 minutes for the one-time image build
+- A few minutes to pull the pre-built image (or 20-30 minutes if you'd
+  rather build it yourself — see
+  [Optional: build the image yourself](#optional-build-the-image-yourself))
 
 ## 1. Get the code
 
@@ -26,46 +30,49 @@ production; it is not an archival/API node.
 git clone https://github.com/blazeapps007/steem.git
 cd steem
 git checkout trim-test-46c7d93d
-git submodule update --init --recursive
 ```
 
 The branch matters: it pins the exact source revision + patch that the
 snapshot's on-disk state was written by. See
 [Why the exact branch/flags matter](#why-the-exact-branchflags-matter) if
-you're curious why this can't just be "any recent steemd."
+you're curious why this can't just be "any recent steemd." (No need to init
+submodules for this path — those are only required if you build the image
+yourself.)
 
-## 2. Build the image
+## 2. Pull the image
 
 ```bash
-docker build -f Dockerfile.trimmed-witness -t steem-witness:trimmed .
+docker pull steemblazer/trimmed-steem:latest
 ```
 
-This takes 20-30 minutes on a modern multi-core machine. Grab a coffee.
-
-Don't edit the `LOW_MEMORY_NODE` / `ENABLE_MIRA` / `CLEAR_VOTES` /
-`SKIP_BY_TX_ID` build args in `Dockerfile.trimmed-witness` — they must match
-what the snapshot was created with, or steemd will fail to start with
-`Column family not found` errors. See
-[Why the exact branch/flags matter](#why-the-exact-branchflags-matter).
+This is a pre-built image matching the exact `LOW_MEMORY_NODE` /
+`ENABLE_MIRA` / `CLEAR_VOTES` / `SKIP_BY_TX_ID` flags the snapshot was
+created with. If you'd rather build it from source yourself, skip this and
+see [Optional: build the image yourself](#optional-build-the-image-yourself),
+then point `docker-compose.yml`'s `image:` at your local tag instead.
 
 ## 3. Download and extract the snapshot
 
 ```bash
-mkdir -p witness_node_data_dir
-curl -L -o snap.zip https://steemscanner.com/snap.zip
-unzip snap.zip -d witness_node_data_dir
+curl -L -o witness_node_data_dir.tar.lz4 https://steemscanner.com/witness_node_data_dir.tar.lz4
+tar --use-compress-program=lz4 -xf witness_node_data_dir.tar.lz4
 ```
 
-Verify it landed correctly — you should see a `block_log`, `block_log.index`,
-`block_log.offset`, and a large number of `rocksdb_*` directories:
+This extracts straight into `witness_node_data_dir/` in the current
+directory. Verify it landed correctly — you should see a `block_log`,
+`block_log.index`, `block_log.offset`, and a large number of `rocksdb_*`
+directories:
 
 ```bash
 ls witness_node_data_dir/blockchain
 ```
 
-If the zip already contains a top-level `witness_node_data_dir/` folder,
-extract one level up instead (`unzip snap.zip -d .`) so you don't end up
-with a nested `witness_node_data_dir/witness_node_data_dir/`.
+Once you've confirmed the node starts cleanly (step 5), you can delete the
+archive to reclaim disk space:
+
+```bash
+rm witness_node_data_dir.tar.lz4
+```
 
 ## 4. Create your config
 
@@ -99,12 +106,16 @@ private-key = 5Kxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 > `witness`/`private-key` commented out (and drop `plugin = witness`) — safe
 > to start and inspect before you commit to anything.
 
-## 5. docker-compose.yml
+## 5. Start it
+
+The repo already has a `docker-compose.yml` at its root, pointing at the
+pre-built image and mounting `./witness_node_data_dir` (the directory you
+just extracted into):
 
 ```yaml
 services:
   witness:
-    image: steem-witness:trimmed
+    image: steemblazer/trimmed-steem:latest
     container_name: steem-witness
     # Uncomment to accept inbound P2P connections (recommended for a real
     # witness so peers can reach you directly; not required to sync out).
@@ -121,7 +132,10 @@ services:
         max-file: "3"
 ```
 
-## 6. Start it
+If you built your own image instead of pulling (see
+[Optional: build the image yourself](#optional-build-the-image-yourself)),
+change `image:` to your local tag, e.g. `steem-witness:trimmed`. Otherwise,
+just start it:
 
 ```bash
 docker compose up -d
@@ -164,14 +178,36 @@ restarts cleanly:
 rm witness_node_data_dir/blockchain/block_log.org
 ```
 
+## Optional: build the image yourself
+
+If you'd rather not pull `steemblazer/trimmed-steem`, you can build the same
+image from source:
+
+```bash
+git submodule update --init --recursive
+docker build -f Dockerfile.trimmed-witness -t steem-witness:trimmed .
+```
+
+This takes 20-30 minutes on a modern multi-core machine. Grab a coffee.
+
+Don't edit the `LOW_MEMORY_NODE` / `ENABLE_MIRA` / `CLEAR_VOTES` /
+`SKIP_BY_TX_ID` build args in `Dockerfile.trimmed-witness` — they must match
+what the snapshot was created with, or steemd will fail to start with
+`Column family not found` errors. See
+[Why the exact branch/flags matter](#why-the-exact-branchflags-matter).
+
+Then point `docker-compose.yml`'s `image:` at `steem-witness:trimmed`
+instead of the pre-built image (see step 5).
+
 ## Troubleshooting
 
 **`Column family not found: ...` / `You have to open all column families`
 at startup.** The steemd build's schema doesn't match the snapshot. Make
-sure you built from `Dockerfile.trimmed-witness` on the exact
-`trim-test-46c7d93d` branch, unmodified. Don't mix a different steemd build
-(a different image, a different branch, or the same branch with different
-`cmake` flags) with this snapshot.
+sure you're using `steemblazer/trimmed-steem:latest` unmodified, or if you
+built it yourself, that it was built from `Dockerfile.trimmed-witness` on
+the exact `trim-test-46c7d93d` branch, unmodified. Don't mix a different
+steemd build (a different image, a different branch, or the same branch
+with different `cmake` flags) with this snapshot.
 
 **Occasional `basic_ios::clear: iostream error` in the logs during normal
 operation.** Expected and harmless — a peer asked this node for a block
