@@ -91,12 +91,9 @@ private-key = 5Kxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 > **Security note:** `private-key` must be your witness's dedicated
 > **signing key** (set via a `witness_set_properties` operation), never your
-> account's owner/active key, and never a brain key — a brain key derives
-> your master password and owner/active/memo keys and should never touch a
-> node's `config.ini` or leave cold storage. Never commit `config.ini` to
-> git or share it — anyone with the signing key can sign blocks (and get
-> your witness penalized/disabled) on your behalf. Treat this file like a
-> password.
+> account's owner/active key. Never commit `config.ini` to git or share it —
+> anyone with the signing key can sign blocks (and get your witness
+> penalized/disabled) on your behalf. Treat this file like a password.
 >
 > If you just want a syncing node with no witness identity yet, leave
 > `witness`/`private-key` commented out (and drop `plugin = witness`) — safe
