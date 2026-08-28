@@ -69,39 +69,38 @@ with a nested `witness_node_data_dir/witness_node_data_dir/`.
 
 ## 4. Create your config
 
-Create `witness_node_data_dir/config.ini`:
+Copy the template and use it as your `config.ini`:
 
-```ini
-p2p-seed-node = seed.steemworld.org:2001
-p2p-seed-node = seed.steemchat.org:2001
-p2p-seed-node = seed.justyy.com:2001
-p2p-seed-node = seed2.justyy.com:2001
-p2p-seed-node = sn1.steemit.com:2001
-p2p-seed-node = sn2.steemit.com:2001
-p2p-seed-node = sn3.steemit.com:2001
-p2p-seed-node = sn4.steemit.com:2001
-p2p-seed-node = sn5.steemit.com:2001
-p2p-seed-node = sn6.steemit.com:2001
-
-log-appender = {"appender":"stderr","stream":"std_error"}
-log-logger = {"name":"default","level":"info","appender":"stderr"}
+```bash
+cp contrib/trimmed_config.ini witness_node_data_dir/config.ini
 ```
 
-This gets you a syncing node with **no witness identity configured** — safe
-to start and inspect before you commit to anything. To actually produce
-blocks as a registered witness, add (see the security note right after):
+This template comes from a real production witness config, so it already
+has a wide/redundant seed-node list, sane `p2p`/`shared-file` tuning, and
+split stderr+file logging. It ships with `plugin = witness` on but the
+witness identity commented out — **before copying it in, edit these two
+lines** to add your own witness account name and signing key:
 
 ```ini
-plugin = witness
+# name of witness controlled by this node (e.g. initwitness )
 witness = "your-witness-account"
+
+# WIF PRIVATE KEY to be used by one or more witnesses or miners
 private-key = 5Kxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 > **Security note:** `private-key` must be your witness's dedicated
 > **signing key** (set via a `witness_set_properties` operation), never your
-> account's owner/active key. Never commit `config.ini` to git or share it —
-> anyone with this key can sign blocks (and get your witness penalized/
-> disabled) on your behalf. Treat this file like a password.
+> account's owner/active key, and never a brain key — a brain key derives
+> your master password and owner/active/memo keys and should never touch a
+> node's `config.ini` or leave cold storage. Never commit `config.ini` to
+> git or share it — anyone with the signing key can sign blocks (and get
+> your witness penalized/disabled) on your behalf. Treat this file like a
+> password.
+>
+> If you just want a syncing node with no witness identity yet, leave
+> `witness`/`private-key` commented out (and drop `plugin = witness`) — safe
+> to start and inspect before you commit to anything.
 
 ## 5. docker-compose.yml
 
