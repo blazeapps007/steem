@@ -1,0 +1,5 @@
+build/
+build.*/
+build-*/
+.git/
+*.log

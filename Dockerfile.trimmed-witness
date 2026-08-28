@@ -1,0 +1,54 @@
+FROM ubuntu:18.04 AS builder
+
+# These flags are pinned to match the schema of the snapshot published
+# alongside this branch. Do NOT change them — MIRA derives RocksDB column
+# family identity from the compiled object/index layout, and LOW_MEMORY_NODE
+# in particular changes which indices exist on comment_object /
+# transaction_object. A mismatched flag here will make steemd unable to open
+# a snapshot built with different flags (fails with "Column family not
+# found" / "You have to open all column families" at startup).
+ARG CMAKE_BUILD_TYPE=Release
+ARG LOW_MEMORY_NODE=ON
+ARG ENABLE_MIRA=ON
+ARG CLEAR_VOTES=ON
+ARG SKIP_BY_TX_ID=ON
+ARG BUILD_STEEM_TESTNET=OFF
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        build-essential cmake git ca-certificates \
+        libboost-all-dev libssl-dev libsnappy-dev \
+        python3-jinja2 autoconf automake autotools-dev bsdmainutils \
+        libyajl-dev libreadline-dev libtool liblz4-tool ncurses-dev \
+        libgflags-dev zlib1g-dev libbz2-dev liblz4-dev libzstd-dev \
+        pkg-config && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /usr/local/src/steem
+COPY . .
+RUN git submodule update --init --recursive || true
+
+RUN mkdir -p build && cd build && \
+    cmake \
+        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} \
+        -DLOW_MEMORY_NODE=${LOW_MEMORY_NODE} \
+        -DENABLE_MIRA=${ENABLE_MIRA} \
+        -DCLEAR_VOTES=${CLEAR_VOTES} \
+        -DSKIP_BY_TX_ID=${SKIP_BY_TX_ID} \
+        -DBUILD_STEEM_TESTNET=${BUILD_STEEM_TESTNET} \
+        .. && \
+    make -j$(nproc) steemd cli_wallet
+
+FROM ubuntu:18.04 AS final
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libsnappy1v5 libreadline7 ca-certificates && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/src/steem/build/programs/steemd/steemd /usr/local/bin/steemd
+COPY --from=builder /usr/local/src/steem/build/programs/cli_wallet/cli_wallet /usr/local/bin/cli_wallet
+
+WORKDIR /steem
+VOLUME ["/steem"]
+EXPOSE 2001
+ENTRYPOINT ["steemd"]
+CMD ["--data-dir=/steem"]
