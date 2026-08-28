@@ -105,3 +105,6 @@ build-*/
 # clion
 .idea
 cmake-build-debug
+
+# local witness node data (chain state, block_log, keys)
+witness_node_data_dir/
