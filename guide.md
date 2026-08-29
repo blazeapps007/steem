@@ -54,7 +54,7 @@ then point `docker-compose.yml`'s `image:` at your local tag instead.
 ## 3. Download and extract the snapshot
 
 ```bash
-curl -L -o witness_node_data_dir.tar.lz4 https://trimmed_file.blazeapps.org/witness_node_data_dir.tar.lz4
+curl -L -o witness_node_data_dir.tar.lz4 https://pub-1f381b2bd7c04cbba634ee9deac91a06.r2.dev/witness_node_data_dir.tar.lz4
 tar --use-compress-program=lz4 -xf witness_node_data_dir.tar.lz4
 ```
 
