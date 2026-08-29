@@ -4,8 +4,8 @@ services:
     container_name: steem-witness
     # Uncomment to accept inbound P2P connections (recommended for a real
     # witness so peers can reach you directly; not required to sync out).
-    ports:
-      - "2001:2001"
+    #ports:
+    #  - "2001:2001"
     volumes:
       - ./witness_node_data_dir:/steem
     command: --data-dir=/steem
