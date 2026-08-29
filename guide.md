@@ -209,6 +209,14 @@ the exact `trim-test-46c7d93d` branch, unmodified. Don't mix a different
 steemd build (a different image, a different branch, or the same branch
 with different `cmake` flags) with this snapshot.
 
+**`Too many open files` / `While open directory: ... Too many open files` /
+`You have to open all column families` at startup.** steemd/MIRA opens
+dozens of separate `rocksdb_*` column families, each with many files, and
+the default per-container file-descriptor limit (often `1024` soft) isn't
+enough. `docker-compose.yml` already sets a high `ulimits.nofile` for this —
+if you're not using that compose file (e.g. a bare `docker run`), add
+`--ulimit nofile=1048576:1048576` yourself.
+
 **Occasional `basic_ios::clear: iostream error` in the logs during normal
 operation.** Expected and harmless — a peer asked this node for a block
 older than the trim window, which it can no longer serve. Doesn't affect
