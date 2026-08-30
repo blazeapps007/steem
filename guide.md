@@ -29,15 +29,16 @@ production; it is not an archival/API node.
 ```bash
 git clone https://github.com/blazeapps007/steem.git
 cd steem
-git checkout trim-test-46c7d93d
+git checkout trim-test-0.23.1
 ```
 
-The branch matters: it pins the exact source revision + patch that the
-snapshot's on-disk state was written by. See
+The branch matters: it's `steemit/steem`'s official `0.23.1` release plus the
+trim patch, built with the exact CMake flags the snapshot's on-disk schema
+was written with. See
 [Why the exact branch/flags matter](#why-the-exact-branchflags-matter) if
-you're curious why this can't just be "any recent steemd." (No need to init
-submodules for this path — those are only required if you build the image
-yourself.)
+you're curious why the flags in particular can't just be "whatever's
+default." (No need to init submodules for this path — those are only
+required if you build the image yourself.)
 
 ## 2. Pull the image
 
@@ -205,7 +206,7 @@ instead of the pre-built image (see step 5).
 at startup.** The steemd build's schema doesn't match the snapshot. Make
 sure you're using `steemblazer/trimmed-steem:latest` unmodified, or if you
 built it yourself, that it was built from `Dockerfile.trimmed-witness` on
-the exact `trim-test-46c7d93d` branch, unmodified. Don't mix a different
+the exact `trim-test-0.23.1` branch, unmodified. Don't mix a different
 steemd build (a different image, a different branch, or the same branch
 with different `cmake` flags) with this snapshot.
 
@@ -234,11 +235,11 @@ separate column families whose expected set is derived from how the C++
 object types are compiled — in particular, `comment_object` and
 `transaction_object` gain or lose indices depending on the `LOW_MEMORY_NODE`
 and `SKIP_BY_TX_ID` build flags. If a steemd binary built with different
-flags (or from different-enough source) opens this snapshot, it expects a
-different column family set than what's on disk and refuses to start. The
-branch and Dockerfile in this guide are the exact combination validated
-against this snapshot — that's why they're pinned rather than "use
-whatever's on `master`."
+flags opens this snapshot, it expects a different column family set than
+what's on disk and refuses to start. The `trim-test-0.23.1` branch (steemit's
+`0.23.1` release plus the trim patch) doesn't change any chain object's
+layout relative to what produced this snapshot, so the flags — not the
+underlying source revision — are what actually has to match exactly.
 
 ## Limitations
 
