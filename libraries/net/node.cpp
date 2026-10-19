@@ -2832,11 +2832,16 @@ namespace graphene { namespace net {
             last_block_message_sent = requested_message;
           continue;
         }
-        catch (fc::key_not_found_exception&)
+        catch (const fc::key_not_found_exception& e)
         {
           reply_messages.push_back(item_not_available_message(item_to_fetch));
-          dlog("received item request from peer ${endpoint} but we don't have it",
-               ("endpoint", originating_peer->get_remote_endpoint()));
+          if (item_to_fetch.item_type == block_message_type && !e.get_log().empty())
+            fc_wlog(fc::logger::get("default"), "${reason} requested by peer ${endpoint} -- replied 404 'item not available'. Harmless, no action needed.",
+                    ("reason", e.get_log().front().get_message())
+                    ("endpoint", originating_peer->get_remote_endpoint()));
+          else
+            dlog("received item request from peer ${endpoint} but we don't have it",
+                 ("endpoint", originating_peer->get_remote_endpoint()));
         }
       }
 

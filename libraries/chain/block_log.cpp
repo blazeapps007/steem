@@ -296,7 +296,8 @@ namespace steem { namespace chain {
 
          optional< signed_block > b;
          uint64_t pos = get_block_pos_helper( block_num );
-         if( pos != npos )
+         // The index still has entries for blocks cut off by trim_block_log.sh; those positions are below data_offset.
+         if( pos != npos && pos >= my->data_offset )
          {
             b = read_block_helper( pos ).first;
             FC_ASSERT( b->block_num() == block_num , "Wrong block was read from block log.", ( "returned", b->block_num() )( "expected", block_num ));

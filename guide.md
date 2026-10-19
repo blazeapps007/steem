@@ -218,10 +218,13 @@ enough. `docker-compose.yml` already sets a high `ulimits.nofile` for this —
 if you're not using that compose file (e.g. a bare `docker run`), add
 `--ulimit nofile=1048576:1048576` yourself.
 
-**Occasional `basic_ios::clear: iostream error` in the logs during normal
-operation.** Expected and harmless — a peer asked this node for a block
-older than the trim window, which it can no longer serve. Doesn't affect
-sync or validation.
+**Occasional `OLD block #... (older than this node's trimmed block_log)
+requested by peer <ip:port> -- replied 404 'item not available'` warnings.**
+Expected and harmless — a peer asked this node for a block older than the
+trim window, which it no longer has, so it tells the peer to fetch it
+elsewhere. Doesn't affect sync, validation, or the peer connection. (Older
+builds logged this case as `basic_ios::clear: iostream error` and dropped
+the peer.)
 
 **`attempting to push a block that is too old` (`assert_exception`) during
 the first few seconds after startup.** Also expected — normal noise from

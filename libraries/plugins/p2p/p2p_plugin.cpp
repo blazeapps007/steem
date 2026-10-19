@@ -335,9 +335,12 @@ graphene::net::message p2p_plugin_impl::get_item( const graphene::net::item_id& 
       {
          auto opt_block = chain.db().fetch_block_by_id(id.item_hash);
          if( !opt_block )
-            elog("Couldn't find block ${id} -- corresponding ID in our chain is ${id2}",
-               ("id", id.item_hash)("id2", chain.db().get_block_id_for_num(block_header::num_from_id(id.item_hash))));
-         FC_ASSERT( opt_block.valid() );
+         {
+            uint32_t num = block_header::num_from_id(id.item_hash);
+            if( num <= chain.db().head_block_num() && chain.db().find_block_id_for_num( num ) == block_id_type() )
+               FC_THROW_EXCEPTION( fc::key_not_found_exception, "OLD block #${num} (older than this node's trimmed block_log)", ("num", num) );
+            FC_THROW_EXCEPTION( fc::key_not_found_exception, "block #${num} ${id} (not on this node's chain)", ("num", num)("id", id.item_hash) );
+         }
          // ilog("Serving up block #${num}", ("num", opt_block->block_num()));
          return block_message(std::move(*opt_block));
       });
