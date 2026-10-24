@@ -289,6 +289,7 @@ ADD contrib/config-for-ahnode.ini /etc/steemd/config-for-ahnode.ini
 
 # add normal startup script that starts via sv
 ADD contrib/steemd.run /usr/local/bin/steem-sv-run.sh
+RUN sed -i 's/\r$//' /usr/local/bin/steem-sv-run.sh
 RUN chmod +x /usr/local/bin/steem-sv-run.sh
 
 # add nginx templates
