@@ -4,7 +4,6 @@ services:
     container_name: steem-witness
     volumes:
       - ./witness_node_data_dir:/steem
-    command: ["--data-dir=/steem"]
     restart: unless-stopped
     ulimits:
       nofile:
