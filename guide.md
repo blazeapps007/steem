@@ -124,6 +124,7 @@ services:
     #   - "2001:2001"
     volumes:
       - ./witness_node_data_dir:/steem
+    entrypoint: ["steemd"]
     command: --data-dir=/steem
     restart: unless-stopped
     logging:
@@ -189,7 +190,16 @@ git submodule update --init --recursive
 docker build -f Dockerfile.trimmed-witness -t steem-witness:trimmed .
 ```
 
-This takes 20-30 minutes on a modern multi-core machine. Grab a coffee.
+The build defaults to two parallel jobs to avoid exhausting memory on small
+servers. If memory is limited, use one job:
+
+```bash
+docker build --build-arg BUILD_JOBS=1 \
+  -f Dockerfile.trimmed-witness -t steem-witness:trimmed .
+```
+
+On a larger machine, you can raise `BUILD_JOBS` to use more cores. More jobs
+can require substantially more RAM.
 
 Don't edit the `LOW_MEMORY_NODE` / `ENABLE_MIRA` / `CLEAR_VOTES` /
 `SKIP_BY_TX_ID` build args in `Dockerfile.trimmed-witness` — they must match

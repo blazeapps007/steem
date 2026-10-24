@@ -8,6 +8,7 @@ services:
     #  - "2001:2001"
     volumes:
       - ./witness_node_data_dir:/steem
+    entrypoint: ["steemd"]
     command: --data-dir=/steem
     restart: unless-stopped
     # steemd/MIRA opens dozens of separate rocksdb_* column families, each

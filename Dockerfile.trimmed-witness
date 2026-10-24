@@ -13,6 +13,7 @@ ARG ENABLE_MIRA=ON
 ARG CLEAR_VOTES=ON
 ARG SKIP_BY_TX_ID=ON
 ARG BUILD_STEEM_TESTNET=OFF
+ARG BUILD_JOBS=2
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -37,7 +38,7 @@ RUN mkdir -p build && cd build && \
         -DSKIP_BY_TX_ID=${SKIP_BY_TX_ID} \
         -DBUILD_STEEM_TESTNET=${BUILD_STEEM_TESTNET} \
         .. && \
-    make -j$(nproc) steemd
+    make -j${BUILD_JOBS} steemd
 
 FROM ubuntu:18.04 AS final
 RUN apt-get update && \
